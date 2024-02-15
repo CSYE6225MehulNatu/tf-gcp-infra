@@ -32,11 +32,16 @@ jobs:
         with:
           terraform_version: 1.0.0
 
+      - name: create-json
+        id: create-json
+        uses: jsdaniell/create-json@1.1.2
+        with:
+          name: "credentials.json"
+          json: ${{ secrets.GOOGLE_CREDENTIALS }}
+
+
       - name: Initialize terraform
         run:  terraform init 
-
-      - name: Create credentials file
-        run: echo "${{ secrets.GOOGLE_CREDENTIALS }}" > ./credentials.json
       
       - name: Validate terraform templates
         run: terraform validate
