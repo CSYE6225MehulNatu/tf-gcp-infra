@@ -1,0 +1,42 @@
+name: Terraform Validation
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+
+    env:
+      TF_VAR_credentials_file_path: ${{ secrets.TF_VAR_credentials_file_path }}
+      TF_VAR_project_id: ${{ secrets.TF_VAR_project_id }}
+      TF_VAR_region: ${{ secrets.TF_VAR_region }}
+      TF_VAR_zone: ${{ secrets.TF_VAR_zone }}
+      TF_VAR_db_vpc_name: ${{ secrets.TF_VAR_vpc_name }}
+      TF_VAR_db_webapp_name: ${{ secrets.TF_VAR_webapp_name }}
+      TF_VAR_webapp_subnet_cidr: ${{ secrets.TF_VAR_webapp_subnet_cidr }}
+      TF_VAR_db_Name: ${{ secrets.TF_VAR_db_Name }}
+      TF_VAR_db_subnet_cidr: ${{ secrets.TF_VAR_db_subnet_cidr }}
+      GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      
+      - name: Install terraform
+        uses: hashicorp/setup-terraform@v1
+        with:
+          terraform_version: 1.0.0
+
+      - name: Initialize terraform
+        run:  terraform init 
+
+      - name: Create credentials file
+        run: echo "${{ secrets.GOOGLE_CREDENTIALS }}" > ./credentials.json
+      
+      - name: Validate terraform templates
+        run: terraform validate
