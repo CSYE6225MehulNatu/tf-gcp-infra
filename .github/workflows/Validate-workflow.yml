@@ -21,6 +21,7 @@ jobs:
       TF_VAR_webapp_subnet_cidr: ${{ secrets.TF_VAR_webapp_subnet_cidr }}
       TF_VAR_db_Name: ${{ secrets.TF_VAR_db_Name }}
       TF_VAR_db_subnet_cidr: ${{ secrets.TF_VAR_db_subnet_cidr }}
+      TF_VAR_webapp_route_name: ${{ secrets.TF_VAR_webapp_route_name }}
       GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
     
     steps:
