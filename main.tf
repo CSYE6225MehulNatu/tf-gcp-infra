@@ -37,7 +37,7 @@ resource "google_compute_subnetwork" "db" {
 }
 
 resource "google_compute_route" "webapp_route" {
-  name             = "webapp-route"
+  name             = var.webapp_route_name
   network          = google_compute_network.vpc-first.self_link
   dest_range       = "0.0.0.0/0"
   priority         = 1000
