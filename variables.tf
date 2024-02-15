@@ -24,7 +24,13 @@ variable "webapp_name" {
 
 variable "db_Name" {
   type     = string
+
 }
+
+variable "webapp_subnet_cidr" {
+  type     = string
+}
+
 
 variable "webapp_subnet_cidr" {
   type     = string
