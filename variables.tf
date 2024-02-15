@@ -31,11 +31,6 @@ variable "webapp_subnet_cidr" {
   type     = string
 }
 
-
-variable "webapp_subnet_cidr" {
-  type     = string
-}
-
 variable "db_subnet_cidr" {
   type     = string
 }
