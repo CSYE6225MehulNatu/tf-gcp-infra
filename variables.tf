@@ -59,4 +59,8 @@ variable "webapp_image_family" {
   type = string
 }
 
+variable "routing_mode" {
+  type = string
+}
+
 
