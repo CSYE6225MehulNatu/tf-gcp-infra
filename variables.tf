@@ -26,6 +26,10 @@ variable "webapp_route_name" {
   type = string
 }
 
+variable "webapp_route_name" {
+  type     = string
+}
+
 variable "db_Name" {
   type = string
 }
