@@ -1,25 +1,29 @@
 variable "credentials_file_path" {
-  type     = string
+  type = string
 }
 
 variable "project_id" {
-  type     = string
+  type = string
 }
 
 variable "region" {
-  type     = string
+  type = string
 }
 
 variable "zone" {
-  type     = string
+  type = string
 }
 
 variable "vpc_name" {
-  type     = string
+  type = string
 }
 
 variable "webapp_name" {
-  type     = string
+  type = string
+}
+
+variable "webapp_route_name" {
+  type = string
 }
 
 variable "webapp_route_name" {
@@ -27,14 +31,32 @@ variable "webapp_route_name" {
 }
 
 variable "db_Name" {
-  type     = string
+  type = string
 }
 
 
 variable "webapp_subnet_cidr" {
-  type     = string
+  type = string
 }
 
 variable "db_subnet_cidr" {
-  type     = string
+  type = string
 }
+
+variable "service_account" {
+  type = string
+}
+
+variable "instance_name" {
+  type = string
+}
+
+variable "firewall_name" {
+  type = string
+}
+
+variable "port" {
+  type = string
+}
+
+

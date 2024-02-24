@@ -44,3 +44,63 @@ resource "google_compute_route" "webapp_route" {
   next_hop_gateway = "default-internet-gateway"
 
 }
+
+data "google_compute_image" "latest_image" {
+  family  = "csye6225-webapp-image" # Replace with your actual image family name
+  project = "csye6225-mehul"        # Replace with your project ID
+}
+
+resource "google_compute_instance" "instance" {
+  boot_disk {
+    initialize_params {
+      image = data.google_compute_image.latest_image.self_link
+      size  = 100
+      type  = "pd-balanced"
+    }
+
+    mode = "READ_WRITE"
+  }
+
+  machine_type = "e2-medium"
+  name         = var.instance_name
+  tags         = ["http-server"]
+  zone         = var.zone
+
+  network_interface {
+    access_config {
+    }
+
+    network     = google_compute_network.vpc-first.self_link
+    queue_count = 0
+    stack_type  = "IPV4_ONLY"
+    subnetwork  = google_compute_subnetwork.webapp.self_link
+  }
+}
+
+
+resource "google_compute_firewall" "fireWall-webapp" {
+  name        = var.firewall_name
+  network     = google_compute_network.vpc-first.self_link
+  description = "Allow SSH access from specific IP ranges"
+
+  allow {
+    protocol = "tcp"
+    ports    = [var.port, "80"]
+  }
+
+  source_ranges = ["0.0.0.0/0"]
+}
+
+
+
+/*
+resource "google_service_account" "default" {
+  account_id   = var.service_account
+  display_name = "VPC-Instance Service account"
+}
+ {
+    service_account
+    #scopes = ["https://www.googleapis.com/auth/devstorage.read_only", "https://www.googleapis.com/auth/logging.write", "https://www.googleapis.com/auth/monitoring.write", "https://www.googleapis.com/auth/service.management.readonly", "https://www.googleapis.com/auth/servicecontrol", "https://www.googleapis.com/auth/trace.append"]
+
+  }
+  */
