@@ -46,8 +46,8 @@ resource "google_compute_route" "webapp_route" {
 }
 
 data "google_compute_image" "latest_image" {
-  family  = "csye6225-webapp-image" # Replace with your actual image family name
-  project = "csye6225-mehul"        # Replace with your project ID
+  family  = var.webapp_image_family
+  project = var.project_id        
 }
 
 resource "google_compute_instance" "instance" {
