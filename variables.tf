@@ -55,7 +55,7 @@ variable "port" {
   type = string
 }
 
-variable "webapp_image_family"  {
+variable "webapp_image_family" {
   type = string
 }
 

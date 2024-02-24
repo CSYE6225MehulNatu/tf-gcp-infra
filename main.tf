@@ -47,7 +47,7 @@ resource "google_compute_route" "webapp_route" {
 
 data "google_compute_image" "latest_image" {
   family  = var.webapp_image_family
-  project = var.project_id        
+  project = var.project_id
 }
 
 resource "google_compute_instance" "instance" {
