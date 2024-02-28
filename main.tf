@@ -109,7 +109,7 @@ resource "google_compute_firewall" "fireWall-webapp" {
 
   allow {
     protocol = "tcp"
-    ports    = [var.port, "80", 22]
+    ports    = [var.port, "80"]
   }
 
   source_ranges = ["0.0.0.0/0"]
