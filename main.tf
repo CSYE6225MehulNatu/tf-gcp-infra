@@ -30,10 +30,27 @@ resource "google_compute_subnetwork" "webapp" {
 }
 
 resource "google_compute_subnetwork" "db" {
-  name          = var.db_Name
-  region        = var.region
+  name                     = var.db_subnet_name
+  region                   = var.region
+  network                  = google_compute_network.vpc-first.self_link
+  ip_cidr_range            = var.db_subnet_cidr
+  private_ip_google_access = true
+}
+
+resource "google_compute_global_address" "private_services_access_ip_range" {
+  //provider      = google-beta
+  project       = var.project_id
+  name          = "global-psconnect-ip"
+  address_type  = "INTERNAL"
+  purpose       = "VPC_PEERING"
   network       = google_compute_network.vpc-first.self_link
-  ip_cidr_range = var.db_subnet_cidr
+  prefix_length = 16
+}
+
+resource "google_service_networking_connection" "default" {
+  network                 = google_compute_network.vpc-first.self_link
+  service                 = "servicenetworking.googleapis.com"
+  reserved_peering_ranges = [google_compute_global_address.private_services_access_ip_range.name]
 }
 
 resource "google_compute_route" "webapp_route" {
@@ -61,10 +78,17 @@ resource "google_compute_instance" "instance" {
     mode = "READ_WRITE"
   }
 
+  depends_on = [ google_sql_database_instance.db-instance ]
   machine_type = "e2-medium"
   name         = var.instance_name
   tags         = ["http-server"]
   zone         = var.zone
+
+  metadata_startup_script = templatefile("./webappInstanceStartUpScript.sh", {"password" = google_sql_user.user.password, 
+  "sqlUser" = google_sql_user.user.name, 
+  "dbName" = google_sql_database.g-sql-database.name, 
+  "host" = google_sql_database_instance.db-instance.private_ip_address})
+
 
   network_interface {
     access_config {
@@ -85,13 +109,50 @@ resource "google_compute_firewall" "fireWall-webapp" {
 
   allow {
     protocol = "tcp"
-    ports    = [var.port, "80"]
+    ports    = [var.port, "80", 22]
   }
 
   source_ranges = ["0.0.0.0/0"]
 }
 
 
+resource "google_sql_database" "g-sql-database" {
+  name     = var.sql_database_name
+  instance = google_sql_database_instance.db-instance.name
+}
+
+resource "google_sql_database_instance" "db-instance" {
+  name             = "db-instance"
+  region           = var.region
+  database_version = "MYSQL_8_0"
+  depends_on       = [google_service_networking_connection.default]
+  settings {
+    tier = "db-f1-micro"
+    ip_configuration {
+      ipv4_enabled    = var.db_ipv4_enabled
+      private_network = google_compute_network.vpc-first.self_link
+    }
+
+
+    disk_size = var.db_disk_size
+    disk_type = var.db_disk_type
+  }
+
+  deletion_protection = "true"
+}
+
+
+resource "random_password" "password" {
+  length           = 16
+  special          = true
+  override_special = "!#$%&*()-_=+[]{}<>:?"
+}
+
+resource "google_sql_user" "user" {
+  name     = var.sql_user_name
+  instance = google_sql_database_instance.db-instance.name
+  password = random_password.password.result
+}
 
 /*
 resource "google_service_account" "default" {

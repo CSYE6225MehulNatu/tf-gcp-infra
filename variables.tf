@@ -26,7 +26,7 @@ variable "webapp_route_name" {
   type = string
 }
 
-variable "db_Name" {
+variable "db_subnet_name" {
   type = string
 }
 
@@ -63,4 +63,23 @@ variable "routing_mode" {
   type = string
 }
 
+variable "db_disk_size" {
+  type = number
+}
+
+variable "db_disk_type" {
+  type = string
+}
+
+variable "db_ipv4_enabled" {
+  type = bool
+}
+
+variable "sql_user_name" {
+  type = string
+}
+
+variable "sql_database_name" {
+  type = string
+}
 
