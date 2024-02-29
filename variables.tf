@@ -83,6 +83,7 @@ variable "sql_database_name" {
   type = string
 }
 
+
 variable "sql_database_deletion_protection" {
   type = string
 }
@@ -90,5 +91,6 @@ variable "sql_database_deletion_protection" {
 variable "availability_type" {
   type = string
 }
+
 
 

@@ -78,11 +78,14 @@ resource "google_compute_instance" "instance" {
     mode = "READ_WRITE"
   }
 
+
   depends_on   = [google_sql_database_instance.sql-db-instance]
+
   machine_type = "e2-medium"
   name         = var.instance_name
   tags         = ["http-server"]
   zone         = var.zone
+
 
   metadata_startup_script = templatefile("./webappInstanceStartUpScript.sh", { "password" = google_sql_user.user.password,
     "sqlUser" = google_sql_user.user.name,
@@ -118,6 +121,7 @@ resource "google_compute_firewall" "fireWall-webapp" {
 
 resource "google_sql_database" "g-sql-database" {
   name     = var.sql_database_name
+
   instance = google_sql_database_instance.sql-db-instance.name
 }
 
@@ -132,6 +136,7 @@ resource "google_sql_database_instance" "sql-db-instance" {
       ipv4_enabled    = var.db_ipv4_enabled
       private_network = google_compute_network.vpc-first.self_link
     }
+
 
     backup_configuration {
       binary_log_enabled = true
@@ -155,6 +160,7 @@ resource "random_password" "password" {
 
 resource "google_sql_user" "user" {
   name     = var.sql_user_name
+
   instance = google_sql_database_instance.sql-db-instance.name
   password = random_password.password.result
 }
