@@ -78,16 +78,16 @@ resource "google_compute_instance" "instance" {
     mode = "READ_WRITE"
   }
 
-  depends_on = [ google_sql_database_instance.db-instance ]
+  depends_on   = [google_sql_database_instance.db-instance]
   machine_type = "e2-medium"
   name         = var.instance_name
   tags         = ["http-server"]
   zone         = var.zone
 
-  metadata_startup_script = templatefile("./webappInstanceStartUpScript.sh", {"password" = google_sql_user.user.password, 
-  "sqlUser" = google_sql_user.user.name, 
-  "dbName" = google_sql_database.g-sql-database.name, 
-  "host" = google_sql_database_instance.db-instance.private_ip_address})
+  metadata_startup_script = templatefile("./webappInstanceStartUpScript.sh", { "password" = google_sql_user.user.password,
+    "sqlUser" = google_sql_user.user.name,
+    "dbName"  = google_sql_database.g-sql-database.name,
+  "host" = google_sql_database_instance.db-instance.private_ip_address })
 
 
   network_interface {
@@ -133,8 +133,8 @@ resource "google_sql_database_instance" "db-instance" {
       private_network = google_compute_network.vpc-first.self_link
     }
 
-    disk_size = var.db_disk_size
-    disk_type = var.db_disk_type
+    disk_size         = var.db_disk_size
+    disk_type         = var.db_disk_type
     availability_type = var.availability_type
   }
 
