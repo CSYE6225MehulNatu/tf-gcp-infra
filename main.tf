@@ -133,12 +133,12 @@ resource "google_sql_database_instance" "db-instance" {
       private_network = google_compute_network.vpc-first.self_link
     }
 
-
     disk_size = var.db_disk_size
     disk_type = var.db_disk_type
+    availability_type = var.availability_type
   }
 
-  deletion_protection = "true"
+  deletion_protection = var.sql_database_deletion_protection
 }
 
 
