@@ -15,6 +15,16 @@ provider "google" {
   zone    = var.zone
 }
 
+
+resource "google_dns_record_set" "a_record" {
+  name         = var.dns_name
+  type         = var.dns_type
+  ttl          = 300
+  managed_zone = var.managed_zone
+  rrdatas      = [google_compute_instance.instance.network_interface[0].access_config[0].nat_ip]
+}
+
+
 resource "google_compute_network" "vpc-first" {
   name                            = var.vpc_name
   auto_create_subnetworks         = false
@@ -38,7 +48,6 @@ resource "google_compute_subnetwork" "db" {
 }
 
 resource "google_compute_global_address" "private_services_access_ip_range" {
-  //provider      = google-beta
   project       = var.project_id
   name          = "global-psconnect-ip"
   address_type  = "INTERNAL"
@@ -59,47 +68,62 @@ resource "google_compute_route" "webapp_route" {
   dest_range       = "0.0.0.0/0"
   priority         = 1000
   next_hop_gateway = "default-internet-gateway"
-
 }
+
+
+
+resource "google_service_account" "webapp_service_account" {
+  account_id   = var.webapp_instance_service_account
+  display_name = "Service Account for webapp insatnce"
+  project      = var.project_id
+}
+
+resource "google_project_iam_binding" "logging_admin_iam_role" {
+  project = var.project_id
+  role    = "roles/logging.admin"
+
+  members = [
+    google_service_account.webapp_service_account.member,
+  ]
+}
+
+resource "google_project_iam_binding" "monitoring_metric_writer_role" {
+  project = var.project_id
+  role    = "roles/monitoring.metricWriter"
+
+  members = [
+    google_service_account.webapp_service_account.member,
+  ]
+}
+
+/*
+resource "google_project_iam_binding" "cloudsql-instanbce-user" {
+  project = var.project_id
+  role    = "roles/cloudsql.instanceUser"
+
+  members = [
+    google_service_account.webapp_service_account.member,
+  ]
+}
+*/
+
+
+resource "google_project_iam_binding" "cloudsql-editor" {
+  project = var.project_id
+  role    = "roles/cloudsql.editor"
+
+  members = [
+    google_service_account.webapp_service_account.member,
+  ]
+}
+
+
 
 data "google_compute_image" "latest_image" {
   family  = var.webapp_image_family
   project = var.project_id
 }
 
-resource "google_compute_instance" "instance" {
-  boot_disk {
-    initialize_params {
-      image = data.google_compute_image.latest_image.self_link
-      size  = 100
-      type  = "pd-balanced"
-    }
-
-    mode = "READ_WRITE"
-  }
-
-  depends_on   = [google_sql_database_instance.sql-db-instance]
-  machine_type = "e2-medium"
-  name         = var.instance_name
-  tags         = ["http-server"]
-  zone         = var.zone
-
-  metadata_startup_script = templatefile("./webappInstanceStartUpScript.sh", { "password" = google_sql_user.user.password,
-    "sqlUser" = google_sql_user.user.name,
-    "dbName"  = google_sql_database.g-sql-database.name,
-  "host" = google_sql_database_instance.sql-db-instance.private_ip_address })
-
-
-  network_interface {
-    access_config {
-    }
-
-    network     = google_compute_network.vpc-first.self_link
-    queue_count = 0
-    stack_type  = "IPV4_ONLY"
-    subnetwork  = google_compute_subnetwork.webapp.self_link
-  }
-}
 
 
 resource "google_compute_firewall" "fireWall-webapp" {
@@ -109,7 +133,7 @@ resource "google_compute_firewall" "fireWall-webapp" {
 
   allow {
     protocol = "tcp"
-    ports    = [var.port, "80"]
+    ports    = [var.port, "80", 22]
   }
 
   source_ranges = ["0.0.0.0/0"]
@@ -125,7 +149,7 @@ resource "google_sql_database_instance" "sql-db-instance" {
   name             = "sql-db-instance"
   region           = var.region
   database_version = "MYSQL_8_0"
-  depends_on       = [google_service_networking_connection.default]
+  depends_on       = [google_service_networking_connection.default, ]
   settings {
     tier = "db-f1-micro"
     ip_configuration {
@@ -153,11 +177,59 @@ resource "random_password" "password" {
   override_special = "!#$%&*()-_=+[]{}<>:?"
 }
 
+
 resource "google_sql_user" "user" {
   name     = var.sql_user_name
   instance = google_sql_database_instance.sql-db-instance.name
   password = random_password.password.result
 }
+
+
+resource "google_compute_instance" "instance" {
+  boot_disk {
+    initialize_params {
+      image = data.google_compute_image.latest_image.self_link
+      size  = 100
+      type  = "pd-balanced"
+    }
+
+    mode = "READ_WRITE"
+  }
+
+  depends_on   = [google_sql_database_instance.sql-db-instance, google_service_account.webapp_service_account, 
+  google_sql_user.user]
+  machine_type = "e2-medium"
+  name         = var.instance_name
+  tags         = ["http-server"]
+  zone         = var.zone
+
+
+  metadata_startup_script = templatefile("./webappInstanceStartUpScript.sh", { "password" = random_password.password.result,
+    "sqlUser" = google_sql_user.user.name,
+    "dbName"  = google_sql_database.g-sql-database.name,
+  "host" = google_sql_database_instance.sql-db-instance.private_ip_address,
+   "logFilePath" = var.log_file_Path_webapp})
+
+
+  service_account {
+    email  = google_service_account.webapp_service_account.email
+    scopes = ["logging-write", "monitoring-write", "cloud-platform"]
+  }
+ 
+
+  network_interface {
+    access_config {
+    }
+
+    network     = google_compute_network.vpc-first.self_link
+    queue_count = 0
+    stack_type  = "IPV4_ONLY"
+    subnetwork  = google_compute_subnetwork.webapp.self_link
+  }
+}
+
+
+
 
 /*
 resource "google_service_account" "default" {
