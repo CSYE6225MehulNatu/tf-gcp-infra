@@ -30,16 +30,11 @@ variable "db_subnet_name" {
   type = string
 }
 
-
 variable "webapp_subnet_cidr" {
   type = string
 }
 
 variable "db_subnet_cidr" {
-  type = string
-}
-
-variable "service_account" {
   type = string
 }
 
@@ -88,6 +83,26 @@ variable "sql_database_deletion_protection" {
 }
 
 variable "availability_type" {
+  type = string
+}
+
+variable "webapp_instance_service_account" {
+  type = string
+}
+
+variable "dns_name" {
+  type = string
+}
+
+variable "dns_type" {
+  type = string
+}
+
+variable "managed_zone" {
+  type = string
+}
+
+variable "log_file_Path_webapp" {
   type = string
 }
 
