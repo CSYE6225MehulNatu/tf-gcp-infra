@@ -11,7 +11,6 @@ echo "DB_PASSWORD=${password}" | sudo tee -a /opt/csye6225/webapp/.env
 echo "DB_HOST=${host}" | sudo tee -a /opt/csye6225/webapp/.env
 echo "LOG_PATH=${logFilePath}" | sudo tee -a /opt/csye6225/webapp/.env
 
-
 sudo chown csye6225 /opt/csye6225/webapp/
 sudo chown csye6225 /opt/csye6225/webapp/.env
 
