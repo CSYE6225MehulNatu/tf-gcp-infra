@@ -106,4 +106,40 @@ variable "log_file_Path_webapp" {
   type = string
 }
 
+variable "email_verifiction_topic" {
+  type = string
+}
+
+variable "email_verifiction_schema" {
+  type = string
+}
+
+variable "email_verification_function_service_account" {
+  type = string
+}
+
+variable "ev_function_node_version" {
+  type = string
+}
+
+variable "ev_function_entry_point" {
+  type = string
+}
+
+variable "ev_function_zip_path" {
+  type = string
+}
+
+variable "google_storage_bucket_name" {
+  type = string
+}
+
+variable "mailgun_api_key" {
+  type = string
+}
+
+
+variable "domain_name" {
+  type = string
+}
 
