@@ -188,8 +188,8 @@ resource "google_sql_database_instance" "sql-db-instance" {
 resource "random_password" "password" {
   length           = 16
   special          = false
-  override_special = "!#$%&*()-_=+[]{}<>:?"
 }
+
 
 
 resource "google_sql_user" "user" {
