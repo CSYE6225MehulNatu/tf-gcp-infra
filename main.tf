@@ -298,9 +298,10 @@ resource "google_compute_region_instance_template" "webapp" {
   }
 
   network_interface {
-
+    /*
     access_config {
     }
+    */
 
     network     = google_compute_network.vpc-first.self_link
     queue_count = 0
