@@ -2,7 +2,7 @@ terraform {
   required_providers {
     google = {
       source  = "hashicorp/google"
-      version = "4.51.0"
+      version = "5.18.0"
     }
   }
 }
@@ -16,13 +16,16 @@ provider "google" {
 }
 
 
+
 resource "google_dns_record_set" "a_record" {
   name         = var.dns_name
   type         = var.dns_type
   ttl          = 300
   managed_zone = var.managed_zone
-  rrdatas      = [google_compute_instance.instance.network_interface[0].access_config[0].nat_ip]
+  rrdatas      = [google_compute_global_forwarding_rule.default.ip_address]
 }
+
+
 
 
 resource "google_compute_network" "vpc-first" {
@@ -38,6 +41,23 @@ resource "google_compute_subnetwork" "webapp" {
   network       = google_compute_network.vpc-first.self_link
   ip_cidr_range = var.webapp_subnet_cidr
 }
+
+
+/*
+
+  Proxy only subnet
+
+*/
+/*
+resource "google_compute_subnetwork" "proxy-only" {
+  name          = "${var.region}-proxy-only"
+  region        = var.region
+  network       = google_compute_network.vpc-first.self_link
+  ip_cidr_range = var.proxy_only_cidr_range
+  purpose       = "REGIONAL_MANAGED_PROXY"
+  role          = "ACTIVE"
+}
+*/
 
 resource "google_compute_subnetwork" "db" {
   name                     = var.db_subnet_name
@@ -127,6 +147,48 @@ resource "google_compute_router_nat" "public_cloud_nat" {
 }
 
 
+
+/*
+  firewall for proxy only and health check
+*/
+
+resource "google_compute_firewall" "health-check-firewall" {
+  name = "fw-allow-health-check"
+  allow {
+    protocol = "tcp"
+  }
+  direction     = "INGRESS"
+  network       = google_compute_network.vpc-first.id
+  priority      = 1000
+  source_ranges = ["130.211.0.0/22", "35.191.0.0/16"]
+  target_tags   = ["load-balanced-backend"]
+}
+
+
+resource "google_compute_firewall" "allow_proxy" {
+  name = "fw-allow-proxies"
+  allow {
+    ports    = ["443"]
+    protocol = "tcp"
+  }
+  allow {
+    ports    = ["80"]
+    protocol = "tcp"
+  }
+  allow {
+    ports    = ["8080"]
+    protocol = "tcp"
+  }
+
+  direction     = "INGRESS"
+  network       = google_compute_network.vpc-first.id
+  priority      = 1000
+  source_ranges = [google_compute_global_forwarding_rule.default.ip_address]
+  target_tags   = ["load-balanced-backend"]
+}
+
+
+
 resource "google_service_account" "webapp_service_account" {
   account_id   = var.webapp_instance_service_account
   display_name = "Service Account for webapp insatnce"
@@ -139,7 +201,7 @@ data "google_compute_image" "latest_image" {
   project = var.project_id
 }
 
-
+/*
 resource "google_compute_firewall" "fireWall-webapp" {
   name        = var.firewall_name
   network     = google_compute_network.vpc-first.self_link
@@ -147,13 +209,12 @@ resource "google_compute_firewall" "fireWall-webapp" {
 
   allow {
     protocol = "tcp"
-    ports    = [var.port, "80", 22]
+    ports    = [22]
   }
 
   source_ranges = ["0.0.0.0/0"]
 }
-
-
+*/
 resource "google_sql_database" "g-sql-database" {
   name     = var.sql_database_name
   instance = google_sql_database_instance.sql-db-instance.name
@@ -186,8 +247,8 @@ resource "google_sql_database_instance" "sql-db-instance" {
 
 
 resource "random_password" "password" {
-  length           = 16
-  special          = false
+  length  = 16
+  special = false
 }
 
 
@@ -199,39 +260,45 @@ resource "google_sql_user" "user" {
 }
 
 
-resource "google_compute_instance" "instance" {
-  boot_disk {
-    initialize_params {
-      image = data.google_compute_image.latest_image.self_link
-      size  = 100
-      type  = "pd-balanced"
-    }
+/*
+  Creating Instance Template
+*/
 
-    mode = "READ_WRITE"
+resource "google_compute_region_instance_template" "webapp" {
+  name        = var.webapp_insatance_template_name
+  description = "This template is used to create webapp server instances."
+  region      = var.region
+  tags        = ["webapp-template", "http-server-template", "allow-health-check", "load-balanced-backend"]
+
+  labels = {
+    environment = "prod"
   }
 
   depends_on = [google_sql_database_instance.sql-db-instance, google_service_account.webapp_service_account,
   google_sql_user.user]
-  machine_type = "e2-medium"
-  name         = var.instance_name
-  tags         = ["http-server"]
-  zone         = var.zone
 
+  instance_description = "webapp instance"
+  machine_type         = "e2-medium"
+  can_ip_forward       = false
 
-  metadata_startup_script = templatefile("./webappInstanceStartUpScript.sh", { "password" = random_password.password.result,
-    "sqlUser" = google_sql_user.user.name,
-    "dbName"  = google_sql_database.g-sql-database.name,
-    "host"    = google_sql_database_instance.sql-db-instance.private_ip_address,
-  "logFilePath" = var.log_file_Path_webapp })
-
-
-  service_account {
-    email  = google_service_account.webapp_service_account.email
-    scopes = ["logging-write", "monitoring-write", "cloud-platform"]
+  scheduling {
+    automatic_restart   = true
+    on_host_maintenance = "MIGRATE"
   }
 
+  disk {
+    source_image = data.google_compute_image.latest_image.self_link
+    auto_delete  = true
+    boot         = true
+    mode         = "READ_WRITE"
+    disk_type    = "pd-balanced"
+    disk_size_gb = 50
+    // backup the disk every day
+    //resource_policies = [google_compute_resource_policy.daily_backup.id]
+  }
 
   network_interface {
+
     access_config {
     }
 
@@ -239,6 +306,93 @@ resource "google_compute_instance" "instance" {
     queue_count = 0
     stack_type  = "IPV4_ONLY"
     subnetwork  = google_compute_subnetwork.webapp.self_link
+  }
+
+  metadata_startup_script = templatefile("./webappInstanceStartUpScript.sh", { "password" = random_password.password.result,
+    "sqlUser" = google_sql_user.user.name,
+    "dbName"  = google_sql_database.g-sql-database.name,
+    "host"    = google_sql_database_instance.sql-db-instance.private_ip_address,
+  "logFilePath" = var.log_file_Path_webapp })
+
+  service_account {
+    email  = google_service_account.webapp_service_account.email
+    scopes = ["logging-write", "monitoring-write", "cloud-platform"]
+  }
+}
+
+
+/*
+  Creating an Autoscaler for webapp - 
+*/
+
+resource "google_compute_region_autoscaler" "webapp-autoscaler" {
+  name   = var.webapp_cpu_usage_autoscaler_name
+  region = var.region
+  target = google_compute_region_instance_group_manager.webapp.id
+
+  autoscaling_policy {
+    max_replicas    = var.max_webapp_instance
+    min_replicas    = var.min_webapp_instance
+    cooldown_period = 60
+
+    cpu_utilization {
+      target = var.webapp_cpu_utilization_threshold
+    }
+  }
+}
+
+
+/*
+  Creating health check
+*/
+
+resource "google_compute_health_check" "webapp" {
+  name                = "autohealing-health-check"
+  check_interval_sec  = 5
+  timeout_sec         = 5
+  healthy_threshold   = 2
+  unhealthy_threshold = 10 # 50 seconds
+
+  http_health_check {
+    request_path = "/healthz"
+    port         = var.port
+  }
+
+  log_config {
+    enable = true
+  }
+}
+
+
+/*
+  Creating region instance group manager
+*/
+
+resource "google_compute_region_instance_group_manager" "webapp" {
+  name = var.instance_group_manager
+
+  base_instance_name        = "app"
+  region                    = var.region
+  distribution_policy_zones = var.distribution_policy_zones
+
+  version {
+    name              = "webapp-nodejs20"
+    instance_template = google_compute_region_instance_template.webapp.self_link
+  }
+
+  depends_on = [google_compute_region_instance_template.webapp]
+
+  //target_pools = [google_compute_target_pool.webapp.id]
+  //target_size  = 2
+
+  named_port {
+    name = var.named_port_instance_group
+    port = var.port_num
+  }
+
+  auto_healing_policies {
+    health_check      = google_compute_health_check.webapp.id
+    initial_delay_sec = 300
   }
 }
 
@@ -397,6 +551,74 @@ resource "google_project_iam_binding" "pubsub-publisher" {
     google_service_account.webapp_service_account.member,
   ]
 }
+
+/*
+  Load balancer Configuration
+
+*/
+
+resource "google_compute_global_address" "lb-ip" {
+  name = var.lb_global_address_name
+}
+
+
+# forwarding rule
+
+resource "google_compute_global_forwarding_rule" "default" {
+  name                  = var.global_forwading_rule_name
+  ip_protocol           = "TCP"
+  load_balancing_scheme = "EXTERNAL"
+  port_range            = "443"
+  target                = google_compute_target_https_proxy.target-https-proxy.id
+  //ip_address            = google_compute_global_address.lb-ip.id
+}
+
+#ssl certificate
+resource "google_compute_managed_ssl_certificate" "default" {
+  name = var.ssl_certi_name
+  managed {
+    domains = [var.domain_name]
+  }
+}
+
+# http proxy
+resource "google_compute_target_https_proxy" "target-https-proxy" {
+  name             = var.https_target_proxy_name
+  url_map          = google_compute_url_map.default.id
+  ssl_certificates = [google_compute_managed_ssl_certificate.default.id]
+}
+
+# url map
+resource "google_compute_url_map" "default" {
+  name            = "url-map"
+  default_service = google_compute_backend_service.default.id
+}
+
+
+# backend service with custom request and response headers
+resource "google_compute_backend_service" "default" {
+  name                  = var.backend_service_name
+  protocol              = "HTTP"
+  port_name             = var.named_port_instance_group
+  load_balancing_scheme = "EXTERNAL"
+  timeout_sec           = 10
+  //enable_cdn              = true
+  health_checks = [google_compute_health_check.webapp.self_link]
+  backend {
+    group           = google_compute_region_instance_group_manager.webapp.instance_group
+    balancing_mode  = "UTILIZATION"
+    capacity_scaler = 1.0
+  }
+
+  log_config {
+    enable      = true
+    sample_rate = 1
+  }
+}
+
+
+
+
 /*
 resource "google_project_iam_binding" "cloud-functions" {
   project = var.project_id
@@ -461,3 +683,49 @@ resource "google_service_account" "default" {
 
   }
   */
+
+/*
+resource "google_compute_instance" "instance" {
+  boot_disk {
+    initialize_params {
+      image = data.google_compute_image.latest_image.self_link
+      size  = 100
+      type  = "pd-balanced"
+    }
+
+    mode = "READ_WRITE"
+  }
+
+  depends_on = [google_sql_database_instance.sql-db-instance, google_service_account.webapp_service_account,
+  google_sql_user.user]
+  machine_type = "e2-medium"
+  name         = var.instance_name
+  tags         = ["http-server"]
+  zone         = var.zone
+
+
+  metadata_startup_script = templatefile("./webappInstanceStartUpScript.sh", { "password" = random_password.password.result,
+    "sqlUser" = google_sql_user.user.name,
+    "dbName"  = google_sql_database.g-sql-database.name,
+    "host"    = google_sql_database_instance.sql-db-instance.private_ip_address,
+  "logFilePath" = var.log_file_Path_webapp })
+
+
+  service_account {
+    email  = google_service_account.webapp_service_account.email
+    scopes = ["logging-write", "monitoring-write", "cloud-platform"]
+  }
+
+
+  network_interface {
+    access_config {
+    }
+
+    network     = google_compute_network.vpc-first.self_link
+    queue_count = 0
+    stack_type  = "IPV4_ONLY"
+    subnetwork  = google_compute_subnetwork.webapp.self_link
+  }
+}
+
+*/
