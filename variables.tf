@@ -143,3 +143,61 @@ variable "domain_name" {
   type = string
 }
 
+variable "webapp_insatance_template_name" {
+  type = string
+}
+
+variable "webapp_cpu_usage_autoscaler_name" {
+  type = string
+}
+
+variable "min_webapp_instance" {
+  type = number
+}
+
+variable "max_webapp_instance" {
+  type = number
+}
+
+variable "webapp_cpu_utilization_threshold" {
+  type = number
+}
+
+variable "distribution_policy_zones" {
+  type = list(string)
+}
+
+variable "proxy_only_cidr_range" {
+  type = string
+}
+
+variable "named_port_instance_group" {
+  type = string
+}
+
+variable "port_num" {
+  type = number
+}
+
+variable "lb_global_address_name" {
+  type = string
+}
+
+variable "global_forwading_rule_name" {
+  type = string
+}
+variable "ssl_certi_name" {
+  type = string
+}
+
+variable "https_target_proxy_name" {
+  type = string
+}
+
+variable "backend_service_name" {
+  type = string
+}
+
+variable "instance_group_manager" {
+  type = string
+}
