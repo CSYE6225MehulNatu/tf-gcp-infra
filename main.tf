@@ -692,7 +692,7 @@ resource "google_kms_crypto_key_iam_binding" "crypto_key_sql" {
   //crypto_key_id = var.cloudsql_keyid
   crypto_key_id = local.crypto_key_sql_id
   //depends_on    = [google_kms_crypto_key.cloudsql_crypto_key]
-  role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
+  role = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
 
   members = ["serviceAccount:${google_project_service_identity.cloud_sql_sa.email}"]
 }
