@@ -1,4 +1,5 @@
-terraform {
+
+/*terraform {
   required_providers {
     google = {
       source  = "hashicorp/google"
@@ -6,13 +7,20 @@ terraform {
     }
   }
 }
-
+*/
 provider "google" {
   credentials = file("./credentials.json")
 
   project = var.project_id
   region  = var.region
   zone    = var.zone
+}
+
+provider "google-beta" {
+  credentials = file("./credentials.json")
+
+  project = var.project_id
+  region  = var.region # Replace with actual file path
 }
 
 
@@ -215,16 +223,18 @@ resource "google_compute_firewall" "fireWall-webapp" {
   source_ranges = ["0.0.0.0/0"]
 }
 */
+
 resource "google_sql_database" "g-sql-database" {
   name     = var.sql_database_name
   instance = google_sql_database_instance.sql-db-instance.name
 }
 
 resource "google_sql_database_instance" "sql-db-instance" {
-  name             = "sql-db-instance"
-  region           = var.region
-  database_version = "MYSQL_8_0"
-  depends_on       = [google_service_networking_connection.default]
+  name                = "sql-db-instance"
+  region              = var.region
+  database_version    = "MYSQL_8_0"
+  depends_on          = [google_service_networking_connection.default, google_kms_crypto_key_iam_binding.crypto_key_sql]
+  encryption_key_name = local.crypto_key_sql_id
   settings {
     tier = "db-f1-micro"
     ip_configuration {
@@ -275,7 +285,7 @@ resource "google_compute_region_instance_template" "webapp" {
   }
 
   depends_on = [google_sql_database_instance.sql-db-instance, google_service_account.webapp_service_account,
-  google_sql_user.user]
+  google_sql_user.user, google_kms_crypto_key_iam_binding.crypto_key_instance_template]
 
   instance_description = "webapp instance"
   machine_type         = "e2-medium"
@@ -293,6 +303,9 @@ resource "google_compute_region_instance_template" "webapp" {
     mode         = "READ_WRITE"
     disk_type    = "pd-balanced"
     disk_size_gb = 50
+    disk_encryption_key {
+      kms_key_self_link = local.crypto_key_instance_template_id
+    }
     // backup the disk every day
     //resource_policies = [google_compute_resource_policy.daily_backup.id]
   }
@@ -433,8 +446,12 @@ resource "google_pubsub_topic" "email-verifiction-topic" {
 
 resource "google_storage_bucket" "csye6225-function-bucket" {
   name          = var.google_storage_bucket_name
-  location      = "US"
+  location      = "US-EAST1"
   force_destroy = true
+  depends_on    = [google_kms_crypto_key_iam_binding.crypto_key_storage_bucket]
+  encryption {
+    default_kms_key_name = local.crypto_key_storage_bucket_id
+  }
 }
 
 resource "google_storage_bucket_object" "function-bucket-object" {
@@ -618,7 +635,95 @@ resource "google_compute_backend_service" "default" {
 }
 
 
+/*
+  Creating Keys
+*/
 
+resource "google_kms_key_ring" "key_ring" {
+  name     = var.key_ring_name
+  location = var.region
+  project  = var.project_id
+}
+
+resource "google_kms_crypto_key" "instance_crypto_key" {
+  name            = var.instance_crypto_key_name
+  key_ring        = google_kms_key_ring.key_ring.id
+  rotation_period = "2592000s"
+
+  /*  lifecycle {
+    prevent_destroy = true
+  } 
+  */
+}
+
+
+resource "google_kms_crypto_key" "cloudsql_crypto_key" {
+  name            = var.cloudsql_crypto_key_name
+  key_ring        = google_kms_key_ring.key_ring.id
+  rotation_period = "2592000s"
+
+  /*   lifecycle {
+    prevent_destroy = false
+  } */
+}
+
+resource "google_kms_crypto_key" "storage_crypto_key" {
+  name            = var.storage_bucket_crypto_key_name
+  key_ring        = google_kms_key_ring.key_ring.id
+  rotation_period = "2592000s"
+
+  /*   lifecycle {
+    prevent_destroy = false
+  } */
+}
+
+
+/*
+  I am bindings for crypto keys
+*/
+
+resource "google_project_service_identity" "cloud_sql_sa" {
+  provider = google-beta
+  project  = var.project_id
+  service  = "sqladmin.googleapis.com"
+}
+
+resource "google_kms_crypto_key_iam_binding" "crypto_key_sql" {
+  //crypto_key_id = var.cloudsql_keyid
+  crypto_key_id = local.crypto_key_sql_id
+  //depends_on    = [google_kms_crypto_key.cloudsql_crypto_key]
+  role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
+
+  members = ["serviceAccount:${google_project_service_identity.cloud_sql_sa.email}"]
+}
+
+resource "google_kms_crypto_key_iam_binding" "crypto_key_instance_template" {
+  crypto_key_id = local.crypto_key_instance_template_id
+  //depends_on    = [google_kms_crypto_key.instance_crypto_key]
+
+  role = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
+
+  members = ["serviceAccount:${var.crypto_sa_instance_template}"]
+}
+
+resource "google_kms_crypto_key_iam_binding" "crypto_key_storage_bucket" {
+  crypto_key_id = local.crypto_key_storage_bucket_id
+  //depends_on    = [google_kms_crypto_key.storage_crypto_key]
+
+  role = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
+
+  members = ["serviceAccount:${var.crypto_sa_storage_bucket}"]
+}
+
+
+locals {
+  crypto_key_sql_id               = "projects/${var.project_id}/locations/${var.region}/keyRings/${var.key_ring_name}/cryptoKeys/${var.cloudsql_crypto_key_name}"
+  crypto_key_instance_template_id = "projects/${var.project_id}/locations/${var.region}/keyRings/${var.key_ring_name}/cryptoKeys/${var.instance_crypto_key_name}"
+  crypto_key_storage_bucket_id    = "projects/${var.project_id}/locations/${var.region}/keyRings/${var.key_ring_name}/cryptoKeys/${var.storage_bucket_crypto_key_name}"
+}
+
+//"projects/csye6225-mehul/locations/us-east1/keyRings/key-ring/cryptoKeys/cloudsql-crypto-key"
+//"projects/csye6225-mehul/locations/us-east1/keyRings/key-ring/cryptoKeys/cloudsql-crypto-key"
 
 /*
 resource "google_project_iam_binding" "cloud-functions" {
