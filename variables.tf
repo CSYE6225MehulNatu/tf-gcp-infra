@@ -201,3 +201,27 @@ variable "backend_service_name" {
 variable "instance_group_manager" {
   type = string
 }
+
+variable "key_ring_name" {
+  type = string
+}
+
+variable "instance_crypto_key_name" {
+  type = string
+}
+
+variable "cloudsql_crypto_key_name" {
+  type = string
+}
+
+variable "storage_bucket_crypto_key_name" {
+  type = string
+}
+
+variable "crypto_sa_instance_template" {
+  type = string
+}
+
+variable "crypto_sa_storage_bucket" {
+  type = string
+}
